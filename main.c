@@ -51,14 +51,14 @@ int client_receive(int client_socket, char *buffer) {
 }
 
 // Function to initialize the server
-int start_server() {
-    int server_fd, client_socket; // fd = file descriptor
+int start_server(int *server_fd) {
+    int client_socket; // fd = file descriptor
     struct sockaddr_in server_addr, client_addr;
     socklen_t addr_len = sizeof(client_addr); // socklen_t is a length and type of and address datatype
     char buffer[BUFFER_SIZE] = {0};
 
     // Create socket
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+    if ((*server_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         perror("Socket creation failed");
         exit(EXIT_FAILURE);
     }
@@ -69,26 +69,26 @@ int start_server() {
     server_addr.sin_port = htons(PORT);  // htons is host to network short, is the translation between internet itegers to "normal" integers (16 bit) 
 
     // Bind socket to the port
-    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
+    if (bind(*server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
         perror("Bind failed");
-        close(server_fd);
+        close(*server_fd);
         exit(EXIT_FAILURE);
     }
 
 
     // Start listening for connections
-    if (listen(server_fd, 1) == -1) {
+    if (listen(*server_fd, 1) == -1) {
         perror("Listen failed");
-        close(server_fd);
+        close(*server_fd);
         exit(EXIT_FAILURE);
     }
 
     printf("Server is running and waiting for connections on port %d...\n", PORT);
 
     // Accept client connection
-    if ((client_socket = accept(server_fd, (struct sockaddr *)&client_addr, &addr_len)) == -1) { // accept will halt the program untill a client will connect
+    if ((client_socket = accept(*server_fd, (struct sockaddr *)&client_addr, &addr_len)) == -1) { // accept will halt the program untill a client will connect
         perror("Client connection failed");
-        close(server_fd);
+        close(*server_fd);
         exit(EXIT_FAILURE);
     }
 
@@ -138,11 +138,11 @@ int start_client(const char *server_ip) {
 }
 
 
-int connect_server_clint(const int *is_server, int *comm_socket){
+int connect_server_clint(const int *is_server, int *comm_socket,int *server_fd){
     // set the user mode to server or client
     if (*is_server == 1){
 
-        *comm_socket = start_server();
+        *comm_socket = start_server(server_fd);
     } else if (*is_server == 0)
     {
         // ask for the server ip 
@@ -163,7 +163,6 @@ int connect_server_clint(const int *is_server, int *comm_socket){
     return 0;
 }
 
-
 // Determines the game result
 char* choose_winner(const char *client_choice, const char *server_choice) {
     char *result = malloc(20 * sizeof(char));
@@ -179,6 +178,7 @@ char* choose_winner(const char *client_choice, const char *server_choice) {
 
     return result;
 }
+
 
 void server_game_loop(const int *client_socket){
     char temp_input[50];
@@ -207,7 +207,11 @@ void server_game_loop(const int *client_socket){
 
         //memset(buff,0,BUFFER_SIZE);
         scanf("%s", temp_input);
-    
+
+        if(strcmp(temp_input,"exit") == 0){
+            break;
+        }
+
         if (server_receive(*client_socket,buff) <= 0){
             printf("reciving client input error\n");
         }else{
@@ -220,12 +224,14 @@ void server_game_loop(const int *client_socket){
         memset(client_choice,20 * sizeof(char),0);
         strcpy(client_choice,buff);
 
-        if( strcmp(server_choice, "rock") != 0 || strcmp(server_choice, "paper") != 0 || strcmp(server_choice, "scissors") != 0){
+        if( !(strcmp(server_choice, "rock") == 0 || strcmp(server_choice, "paper") == 0 || strcmp(server_choice, "scissors") == 0)){
             printf("invalid input choosing randomly \n");
+            memset(client_choice,20 * sizeof(char),0);
             strcpy(server_choice,choices[rand() % 3]);
         }
-        if( strcmp(client_choice, "rock") != 0 || strcmp(client_choice, "paper") != 0 || strcmp(client_choice, "scissors") != 0){  
+        if( !(strcmp(client_choice, "rock") == 0 || strcmp(client_choice, "paper") == 0 || strcmp(client_choice, "scissors") == 0)){  
             printf("invalid client input choosing randomly \n");
+            memset(client_choice,20 * sizeof(char),0);
             strcpy(client_choice,choices[rand() % 3]);
         }
         
@@ -278,8 +284,8 @@ void client_game_loop(const int *server_socket){
 }
 
 int main(void){
-    // urrraaaa this is either the server or client socket 
-    int comm_socket;
+    // urrraaaa this is the connecting socket between the server and client 
+    int comm_socket, server_fd = 0;
 
     // are you a server or a client?
     int is_server;
@@ -295,7 +301,7 @@ int main(void){
 
 
     //  establish conection between server and client
-    connect_server_clint(&is_server, &comm_socket);
+    connect_server_clint(&is_server, &comm_socket, &server_fd);
     
     //  beging game loop 
     if (is_server)
@@ -309,7 +315,13 @@ int main(void){
         perror("now how did we got here? 2548742");
         return EXIT_FAILURE;
     }
-
+    printf("closing comport\n");
+    close(comm_socket);
+    if (server_fd != 0){
+        printf("closing server port\n");
+        close(server_fd);
+    }
+    
     
     return EXIT_SUCCESS;
 }
