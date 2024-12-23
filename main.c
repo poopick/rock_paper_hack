@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <time.h>
 
 
 #define PORT 8080
@@ -12,8 +13,7 @@
 #define MSG_RESULT_WON "win"
 #define MSG_RESULT_TIE "tie"
 #define MSG_RESULT_LOST "lose"
-#define NULL '/0'
-#define TIME_OUT 90
+//#define TIME_OUT 90
 
 
 // Function to send a message from the server
@@ -137,10 +137,11 @@ int start_client(const char *server_ip) {
     return client_fd;
 }
 
+
 int connect_server_clint(const int *is_server, int *comm_socket){
     // set the user mode to server or client
     if (*is_server == 1){
-        
+
         *comm_socket = start_server();
     } else if (*is_server == 0)
     {
@@ -162,10 +163,35 @@ int connect_server_clint(const int *is_server, int *comm_socket){
     return 0;
 }
 
+
+// Determines the game result
+char* choose_winner(const char *client_choice, const char *server_choice) {
+    char *result = malloc(20 * sizeof(char));
+        if (strcmp(client_choice, server_choice) == 0) {
+        strcpy(result,MSG_RESULT_TIE);
+    } else if ((strcmp(client_choice, "rock") == 0 && strcmp(server_choice, "scissors") == 0) ||
+               (strcmp(client_choice, "scissors") == 0 && strcmp(server_choice, "paper") == 0) ||
+               (strcmp(client_choice, "paper") == 0 && strcmp(server_choice, "rock") == 0)) {
+        strcpy(result,MSG_RESULT_WON);
+    } else {
+        strcpy(result,MSG_RESULT_LOST);
+    }
+
+    return result;
+}
+
 void server_game_loop(const int *client_socket){
     char temp_input[50];
     char msg[BUFFER_SIZE];
     char buff[BUFFER_SIZE];
+
+    char client_choice[20];
+    char server_choice[20];
+
+    char client_result[20]; 
+    char server_result[20]; 
+
+    const char *choices[] = {"rock", "paper", "scissors"};
 
     while (1){
         memset(temp_input,0,sizeof(char) * 50);
@@ -182,77 +208,41 @@ void server_game_loop(const int *client_socket){
         //memset(buff,0,BUFFER_SIZE);
         scanf("%s", temp_input);
     
-        int no_response = 1;
-        for (int i = 0; i < TIME_OUT; i++)
-        {
-            server_receive(*client_socket,buff);
-            if (*buff != NULL)
-            {
-                printf("client answer recived! \n");
-                no_response = 0;
-                break;
-            }
-            sleep(1);
-        }
-        if (no_response)
-        {
-            printf("no response \n");
+        if (server_receive(*client_socket,buff) <= 0){
+            printf("reciving client input error\n");
+        }else{
+            printf("client answer recived! \n");
         }
         
 
+        memset(server_choice,20 * sizeof(char),0);
+        strcpy(server_choice,temp_input);
+        memset(client_choice,20 * sizeof(char),0);
+        strcpy(client_choice,buff);
+
+        if( strcmp(server_choice, "rock") != 0 || strcmp(server_choice, "paper") != 0 || strcmp(server_choice, "scissors") != 0){
+            printf("invalid input choosing randomly \n");
+            strcpy(server_choice,choices[rand() % 3]);
+        }
+        if( strcmp(client_choice, "rock") != 0 || strcmp(client_choice, "paper") != 0 || strcmp(client_choice, "scissors") != 0){  
+            printf("invalid client input choosing randomly \n");
+            strcpy(client_choice,choices[rand() % 3]);
+        }
         
-        if( strcmp(temp_input, "rock") == 0){
-            if (strcmp(buff, "rock") == 0){
-                printf("you tie\n");
-                strcpy(msg,MSG_RESULT_TIE);
-            }
-            else if (strcmp(buff, "paper") == 0){
-                printf("you lose\n");
-                strcpy(msg,MSG_RESULT_WON);
-            }
-            else if (strcmp(buff, "scissors") == 0){
-                printf("you won\n");
-                strcpy(msg,MSG_RESULT_LOST);
-            }
-            else {printf("bad client input\n");strcpy(msg,"input_error");}
-        }
-        else if (strcmp(temp_input, "paper") == 0){
-            if (strcmp(buff, "rock") == 0){
-                printf("you won\n");
-                strcpy(msg,MSG_RESULT_LOST);
-                }
-            else if (strcmp(buff, "paper") == 0){
-                printf("you tie\n");
-                strcpy(msg,MSG_RESULT_TIE);
-                }
-            else if (strcmp(buff, "scissors") == 0){
-                printf("you lose\n");
-                strcpy(msg,MSG_RESULT_WON);
-                }
-            else {printf("bad client input\n");strcpy(msg,"input_error");}
-        }
-        else if (strcmp(temp_input, "scissors") == 0){
-            if (strcmp(buff, "rock") == 0){
-                printf("you lose\n");
-                strcpy(msg,MSG_RESULT_WON);
-                }
-            else if (strcmp(buff, "paper") == 0){
-                printf("you won\n");
-                strcpy(msg,MSG_RESULT_LOST);
-                }
-            else if (strcmp(buff, "scissors") == 0){
-                printf("you tie\n");
-                strcpy(msg,MSG_RESULT_TIE);
-                }
-            else {printf("bad client input\n");strcpy(msg,"input_error");}
-        }
-        else{perror("invalid input\n");} 
-          
-        server_send(*client_socket,msg);
+        memset(client_result, 20 * sizeof(char), 0);
+        strcpy(client_result, choose_winner(client_choice, server_choice));
+        memset(server_result, 20 * sizeof(char), 0);
+        strcpy(server_result, choose_winner(server_choice, client_choice));
+        strcpy(msg, client_result);
+        server_send(*client_socket, msg);
+        printf("you %s\n",server_result);
+        
+
     }
     
 
 }
+
 
 // main loop for client is to listen and respose
 void client_game_loop(const int *server_socket){
@@ -266,9 +256,8 @@ void client_game_loop(const int *server_socket){
         memset(msg,0,BUFFER_SIZE);
 
         client_receive(*server_socket,buff);
-        if (*buff == '/0'){
-            continue;
-        }else if (strcmp(buff, MSG_PROMPT) == 0){
+       
+        if (strcmp(buff, MSG_PROMPT) == 0){
             printf("please pick rock, paper or scissors \n");
             scanf("%s", msg);
             //for (char *p = msg; *p; ++p) *p = tolower(*p);
