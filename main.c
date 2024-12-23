@@ -12,6 +12,8 @@
 #define MSG_RESULT_WON "win"
 #define MSG_RESULT_TIE "tie"
 #define MSG_RESULT_LOST "lose"
+#define NULL '/0'
+#define TIME_OUT 90
 
 
 // Function to send a message from the server
@@ -146,7 +148,7 @@ int connect_server_clint(const int *is_server, int *comm_socket){
         char server_ip[20];
         printf("enter the server ip: \n");
 
-        if(scanf("%s", &server_ip) != 1){
+        if(scanf("%s", server_ip) != 1){
             perror("server ip fetch error! \n");
             return EXIT_FAILURE;
         }
@@ -177,11 +179,28 @@ void server_game_loop(const int *client_socket){
         server_send(*client_socket,msg);
 
 
-        scanf("%s", &temp_input);
-        server_receive(*client_socket,buff);
+        //memset(buff,0,BUFFER_SIZE);
+        scanf("%s", temp_input);
     
-        memset(buff,0,BUFFER_SIZE);
+        int no_response = 1;
+        for (int i = 0; i < TIME_OUT; i++)
+        {
+            server_receive(*client_socket,buff);
+            if (*buff != NULL)
+            {
+                printf("client answer recived! \n");
+                no_response = 0;
+                break;
+            }
+            sleep(1);
+        }
+        if (no_response)
+        {
+            printf("no response \n");
+        }
+        
 
+        
         if( strcmp(temp_input, "rock") == 0){
             if (strcmp(buff, "rock") == 0){
                 printf("you tie\n");
@@ -247,11 +266,11 @@ void client_game_loop(const int *server_socket){
         memset(msg,0,BUFFER_SIZE);
 
         client_receive(*server_socket,buff);
-        if (*buff == NULL || *buff == 0 || *buff == '0'){
+        if (*buff == '/0'){
             continue;
         }else if (strcmp(buff, MSG_PROMPT) == 0){
             printf("please pick rock, paper or scissors \n");
-            scanf("%s", &msg);
+            scanf("%s", msg);
             //for (char *p = msg; *p; ++p) *p = tolower(*p);
             client_send(*server_socket,msg);
         }else if(strcmp(buff, MSG_RESULT_WON) == 0){
@@ -301,12 +320,5 @@ int main(void){
     }
 
     
-    
-    
-    //      sent a request to start game (choose R_P_C)
-    //      declare a winner 
-    //      choose if you want to play again
-
-
     return EXIT_SUCCESS;
 }
