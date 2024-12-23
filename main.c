@@ -256,9 +256,7 @@ void client_game_loop(const int *server_socket){
         memset(msg,0,BUFFER_SIZE);
 
         client_receive(*server_socket,buff);
-        // if (*buff == '/0'){
-        //     continue;
-        // }else
+       
         if (strcmp(buff, MSG_PROMPT) == 0){
             printf("please pick rock, paper or scissors \n");
             scanf("%s", msg);
