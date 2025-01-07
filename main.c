@@ -133,7 +133,6 @@ int start_client(const char *server_ip) {
         exit(EXIT_FAILURE);
     }
     printf("Connected to server!\n");
-
     return client_fd;
 }
 
@@ -164,9 +163,10 @@ int connect_server_clint(const int *is_server, int *comm_socket,int *server_fd){
 }
 
 // Determines the game result
-char* choose_winner(const char *client_choice, const char *server_choice) {
-    char *result = malloc(20 * sizeof(char));
-        if (strcmp(client_choice, server_choice) == 0) {
+void choose_winner(const char *client_choice, const char *server_choice, char *result) {
+    // char *result = malloc(20 * sizeof(char));
+    //char result[20];
+    if (strcmp(client_choice, server_choice) == 0) {
         strcpy(result,MSG_RESULT_TIE);
     } else if ((strcmp(client_choice, "rock") == 0 && strcmp(server_choice, "scissors") == 0) ||
                (strcmp(client_choice, "scissors") == 0 && strcmp(server_choice, "paper") == 0) ||
@@ -176,12 +176,12 @@ char* choose_winner(const char *client_choice, const char *server_choice) {
         strcpy(result,MSG_RESULT_LOST);
     }
 
-    return result;
+    //return result;
 }
 
 
-void server_game_loop(const int *client_socket){
-    char temp_input[50];
+int server_game_loop(const int *client_socket){
+    char temp_input[20];
     char msg[BUFFER_SIZE];
     char buff[BUFFER_SIZE];
 
@@ -193,60 +193,54 @@ void server_game_loop(const int *client_socket){
 
     const char *choices[] = {"rock", "paper", "scissors"};
 
-    while (1){
-        memset(temp_input,0,sizeof(char) * 50);
-        memset(buff,0,BUFFER_SIZE);
-        memset(msg,0,BUFFER_SIZE);
 
-        printf(MSG_PROMPT);
-        printf("\n");
-        //for (char *p = temp_input; *p; ++p) *p = tolower(*p);
-        strcpy(msg, MSG_PROMPT);
-        server_send(*client_socket,msg);
+    printf(MSG_PROMPT);
+    printf("\n");
+    strcpy(msg, MSG_PROMPT);
+    server_send(*client_socket,msg);
 
+    scanf("%s", temp_input);
 
-        //memset(buff,0,BUFFER_SIZE);
-        scanf("%s", temp_input);
+    if(strcmp(temp_input,"exit") == 0){
+        return 0;
+    }
 
-        if(strcmp(temp_input,"exit") == 0){
-            break;
-        }
-
-        if (server_receive(*client_socket,buff) <= 0){
-            printf("reciving client input error\n");
-        }else{
-            printf("client answer recived! \n");
-        }
+    if (server_receive(*client_socket,buff) <= 0){
+        printf("reciving client input error\n");
+        return 0;
+    }else{
+        printf("client answer recived! \n");
+    }
         
 
-        memset(server_choice,20 * sizeof(char),0);
+        memset(server_choice,0,20 * sizeof(char));
         strcpy(server_choice,temp_input);
-        memset(client_choice,20 * sizeof(char),0);
-        strcpy(client_choice,buff);
+        memset(client_choice,0,20 * sizeof(char));
+        strcpy(client_choice,buff); // there it is :)
 
         if( !(strcmp(server_choice, "rock") == 0 || strcmp(server_choice, "paper") == 0 || strcmp(server_choice, "scissors") == 0)){
             printf("invalid input choosing randomly \n");
-            memset(client_choice,20 * sizeof(char),0);
+            memset(client_choice,0,20 * sizeof(char));
             strcpy(server_choice,choices[rand() % 3]);
         }
         if( !(strcmp(client_choice, "rock") == 0 || strcmp(client_choice, "paper") == 0 || strcmp(client_choice, "scissors") == 0)){  
             printf("invalid client input choosing randomly \n");
-            memset(client_choice,20 * sizeof(char),0);
+            memset(client_choice,0,20 * sizeof(char));
             strcpy(client_choice,choices[rand() % 3]);
         }
         
-        memset(client_result, 20 * sizeof(char), 0);
-        strcpy(client_result, choose_winner(client_choice, server_choice));
-        memset(server_result, 20 * sizeof(char), 0);
-        strcpy(server_result, choose_winner(server_choice, client_choice));
+        memset(client_result,0, 20);
+        char result[20] = "";
+        choose_winner(client_choice, server_choice, result);
+        strcpy(client_result, result);
+        memset(server_result,0, 20);
+        memset(result,0 ,20);
+        choose_winner(server_choice, client_choice, result);
+        strcpy(server_result, result);
         strcpy(msg, client_result);
         server_send(*client_socket, msg);
         printf("you %s\n",server_result);
-        
-
-    }
-    
-
+    return 1;
 }
 
 
@@ -282,6 +276,7 @@ void client_game_loop(const int *server_socket){
 }
 
 int main(void){
+    
     // urrraaaa this is the connecting socket between the server and client 
     int comm_socket, server_fd = 0;
 
@@ -304,7 +299,12 @@ int main(void){
     //  beging game loop 
     if (is_server)
     {
-        server_game_loop(&comm_socket);
+        int stop = 1;
+        while (stop)
+        {
+            stop = server_game_loop(&comm_socket);
+        }
+        
     } else if (is_server == 0)
     {
         client_game_loop(&comm_socket);
